@@ -1,23 +1,23 @@
 var ImgurFoxAuthDisplay = (function() {
   Components.utils.import("resource://imgurfox/imgur.jsm");
   Components.utils.import("resource://imgurfox/inject.jsm");
-  
+
   var ImgurFoxAuthDisplay = {
     init: function() {
       window.addEventListener("load", ImgurFoxAuthDisplay.onLoad, false);
     },
-    
+
     onLoad: function() {
       if (window.location.hash == "#small") {
         document.body.className = "small";
       }
       ImgurFoxAuthDisplay.updateStatus();
     },
-    
+
     setLoading: function(isLoading) {
       document.getElementById("loading-indicator").style.display = isLoading ? "inline" : "none";
     },
-    
+
     updateStatus: function() {
       let contentEl = document.getElementById("content"),
           accountLabelEl = document.getElementById("account-label"),
@@ -40,14 +40,14 @@ var ImgurFoxAuthDisplay = (function() {
         document.getElementById("imgur-signin").disabled = false;
       }
     },
-    
+
     signin: function(event) {
       ImgurFoxAuthDisplay.setLoading(true);
       document.getElementById("imgur-signin").disabled = true;
       Imgur.oauth.authorize(function(status) {
         document.getElementById("account-label").textContent = {
           request: "Connecting...",
-          authorize: "Waiting for authorization...",
+          authorize: "A new Firefox tab has opened. Close this window and sign into Imgur from there.",
           allowed: "Recieved authorization...",
           denied: "Access denied.",
           access: "Finalizing...",
@@ -62,17 +62,17 @@ var ImgurFoxAuthDisplay = (function() {
         }
       });
     },
-    
+
     logout: function() {
       Imgur.oauth.forget();
       ImgurFoxAuthDisplay.updateStatus();
     },
-    
+
     register: function() {
       Imgur.register();
     }
   };
-  
+
   return ImgurFoxAuthDisplay;
 })();
 

@@ -26,13 +26,6 @@
                       oncommand="ImgurFoxWindow.transloadImage(event, false);"
                       hidden="true"/>
                       
-            <menuitem id="context-imgur-upload-edit"
-                      class="imgur-image-command"
-                      label="&uploadEditImageCmd.label;"
-                      accesskey="&uploadEditImageCmd.accesskey;"
-                      oncommand="ImgurFoxWindow.transloadImage(event, true);"
-                      hidden="true"/>
-                      
             <menu id="context-imgur-upload-share"
                   class="menu-iconic imgur-image-command"
                   label="&uploadShareImageCmd.label;"
@@ -70,7 +63,14 @@
                           oncommand="ImgurFoxWindow.transloadImage(event, false, 'buzz');"/>
                           
               </menupopup>
-            </menu>
+            </menu>          
+                      
+            <menuitem id="context-imgur-upload-edit"
+                      class="imgur-image-command"
+                      label="&uploadEditImageCmd.label;"
+                      accesskey="&uploadEditImageCmd.accesskey;"
+                      oncommand="ImgurFoxWindow.transloadImage(event, true);"
+                      hidden="true"/>
 
             <!-- General commands -->
 

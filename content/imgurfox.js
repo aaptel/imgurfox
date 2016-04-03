@@ -8,30 +8,25 @@ var ImgurFoxWindow = (function() {
       .classes["@mozilla.org/preferences-service;1"]
       .getService(Components.interfaces.nsIPrefService)
       .getBranch("extensions.giorgio@gilestro.tk.");
-  
+
   let stringBundle =
     Components
       .classes["@mozilla.org/intl/stringbundle;1"]
       .getService(Components.interfaces.nsIStringBundleService)
       .createBundle("chrome://imgurfox/locale/imgurfox.properties");
-  
-  let nativeJSON =
-    Components
-      .classes["@mozilla.org/dom/json;1"]
-      .createInstance(Components.interfaces.nsIJSON);
 
   let ioService =
     Components
       .classes["@mozilla.org/network/io-service;1"]
       .getService(Components.interfaces.nsIIOService);
-  
+
   let imageMimes = "jpg|gif|png|tiff|bmp",
       imageFileReg = new RegExp("\\.("+imageMimes+"|jpeg|apng|pdf|xcf)(\\?.*)?$", "i");
-  
+
   let CONTEXT_CHOICE = 0;
   let CONTEXT_UPLOAD = 1;
   let CONTEXT_EDIT   = 2;
-  
+
   function dataFromURI(dataURI) {
     return dataURI.replace(/^([^,])*,/, "");
   }
@@ -40,16 +35,16 @@ var ImgurFoxWindow = (function() {
     init: function() {
       window.addEventListener("load", ImgurFoxWindow.onLoad, false);
     },
-    
+
     onLoad: function() {
-      let contextMenu = document.getElementById("contentAreaContextMenu"),
-          imgurMenu = document.getElementById("context-imgur");
+      let contextMenu = document.getElementById("contentAreaContextMenu");
+      let imgurMenu = document.getElementById("context-imgur");
       contextMenu.addEventListener("popupshowing", function(event) {
         if (gContextMenu.onLink || !gContextMenu.onTextInput && !gContextMenu.isContentSelected) {
-          let imageURI = ImgurFoxWindow.contextImageURI,
-              showMenuItem = imageURI && imageURI.scheme == "http";
-              imageMenuItems = document.getElementsByClassName("imgur-image-command");
-          
+          let imageURI = ImgurFoxWindow.contextImageURI;
+          let showMenuItem = imageURI && (imageURI.scheme == "http" || imageURI.scheme == "https");
+          let imageMenuItems = document.getElementsByClassName("imgur-image-command");
+
           Array.prototype.forEach.call(imageMenuItems, function(menuitem) {
             menuitem.hidden = !showMenuItem;
           });
@@ -67,22 +62,27 @@ var ImgurFoxWindow = (function() {
           clipboardMenuItem.disabled = !ImgurFoxWindow._clipboardImageData;
         }, 0);
       }, false);
-      
+
       Imgur.oauth.load();
       ImgurFoxWindow.checkFirstRun();
     },
-    
+
     checkFirstRun: function() {
-      if (!preferences.prefHasUserValue("firstrun")) {
+      let firstrun = true;
+      if (preferences.prefHasUserValue("firstrun")) {
+        firstrun = false;
+      }
+
+      if (firstrun) {
         setTimeout(function() {
           gBrowser.selectedTab = gBrowser.addTab("chrome://imgurfox/content/welcome.html");
         }, 0);
         preferences.setBoolPref("firstrun", false);
       }
     },
-    
+
     /* User command handlers */
-    
+
     get contextImageURI() {
       if (gContextMenu.onImage) {
         // Right clicked on an image
@@ -98,15 +98,15 @@ var ImgurFoxWindow = (function() {
     },
 
     getClipboardImageData: function() {
-      let clip = Components.classes["@mozilla.org/widget/clipboard;1"].getService(Components.interfaces.nsIClipboard),
-          trans = Components.classes["@mozilla.org/widget/transferable;1"].createInstance(Components.interfaces.nsITransferable);
+      let clip = Components.classes["@mozilla.org/widget/clipboard;1"].getService(Components.interfaces.nsIClipboard);
+      let trans = Components.classes["@mozilla.org/widget/transferable;1"].createInstance(Components.interfaces.nsITransferable);
 
       imageMimes.split("|").forEach(function(mime) {
         trans.addDataFlavor("image/"+mime);
       });
 
-      clip.getData(trans, clip.kGlobalClipboard);  
-      
+      clip.getData(trans, clip.kGlobalClipboard);
+
       let flavorContainer = {}, dataContainer = {}, dataLength = {};
       try {
         trans.getAnyTransferData(flavorContainer, dataContainer, dataLength);
@@ -116,11 +116,11 @@ var ImgurFoxWindow = (function() {
 
       return "data:"+flavorContainer.value+";base64,"+btoa(dataContainer.value.data);
     },
-    
+
     _createWorkingTab: function(callback) {
       let workingTab = gBrowser.selectedTab = gBrowser.addTab("http://imgur.com/working/");
-          workingBrowser = gBrowser.getBrowserForTab(workingTab);
-          
+      let workingBrowser = gBrowser.getBrowserForTab(workingTab);
+
       // While waiting for the working indicator page to load completely seems wrong,
       // we must do this since taking the screenshot will hard freeze the browser. We have to
       // give the browser a chance to load and render the working page, or else the user will
@@ -146,7 +146,7 @@ var ImgurFoxWindow = (function() {
         }, 0);
       }, true);
     },
-    
+
     _uploadImage: function(getImage) {
       ImgurFoxWindow._createWorkingTab(function(workingTab) {
         Imgur.upload(dataFromURI(getImage()),
@@ -155,12 +155,12 @@ var ImgurFoxWindow = (function() {
         );
       });
     },
-    
+
     transloadImage: function(event, edit, share) {
       let src = ImgurFoxWindow.contextImageURI.spec;
       ImgurFoxWindow._createWorkingTab(function(workingTab) {
         Imgur.transload(src, edit,
-          function success(url) { workingTab.go(share ? ShareTo[share](url) : url); },
+          function success(url) { workingTab.go(share ? ImgurShareTo[share](url) : url); },
           function error() { ImgurFoxWindow.errorMessage(); }
         );
       });
@@ -172,109 +172,109 @@ var ImgurFoxWindow = (function() {
         ImgurFoxWindow._uploadImage(function() imageData);
       }
     },
-    
+
     uploadScreenshot: function(event) {
       let win = gBrowser.contentWindow;
       ImgurFoxWindow._uploadImage(function() ImgurFoxWindow.grabScreenshot(win));
     },
-    
+
     uploadSelectiveScreenshot: function(event) {
       ImgurFoxWindow.grabSelectiveScreenshot(ImgurFoxWindow._uploadImage);
     },
-    
+
     /* Browser screenshot helpers */
-    
+
     grabScreenshot: function(win, rect) {
       let canvas = document.getElementById("imgurfox-canvas");
-      
+
       if (!rect) {
         rect = {x: win.pageXOffset, y: win.pageYOffset, w: win.innerWidth, h: win.innerHeight};
       }
-      
+
       canvas.width = rect.w;
       canvas.height = rect.h;
-      
+
       let ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, rect.w, rect.h);
       ctx.drawWindow(win, rect.x, rect.y, rect.w, rect.h, "rgb(255,255,255)");
       return canvas.toDataURL();
     },
-    
+
     grabSelectiveScreenshot: function(callback) {
       let notificationValue = "imgurfox-selective-screenshot",
           pageWindow = gBrowser.contentWindow,
           pageDocument = gBrowser.contentDocument;
-    
+
       function initBar(iframe) {
         let notificationBox = gBrowser.getNotificationBox();
         return notificationBox.appendNotification(
           stringBundle.GetStringFromName("selectiveScreenshot.message"),
-          notificationValue, 
+          notificationValue,
           "chrome://imgurfox/skin/imgur_small.png",
           notificationBox.PRIORITY_INFO_HIGH,
           [{label:"Cancel", accessKey:"C", callback:function() { endCrop(iframe); }},
            {label:"Upload", accessKey:"U", callback:function() { performCrop(iframe); }}]);
       }
-      
+
       function initCrop() {
         // Make an iframe on top of the page content.
         let pageDocumentHeight = pageDocument.documentElement.scrollHeight,
             overlayId = "_imgurfox-crop-overlay";
-        
+
         if (pageDocument.getElementById(overlayId)) {
           // Already cropping the page.
           return;
         }
-        
+
         let iframe = pageDocument.createElement("iframe");
         iframe.setAttribute("id", overlayId);
         iframe.setAttribute("style", "position:absolute; top:0; left:0; width:100%; height:"+pageDocumentHeight+"px; border:none; background:none; overflow:hidden; z-index:999999;");
         pageDocument.body.appendChild(iframe);
-        
+
         // Woot, let"s start piling scripts and css into it.
         iframe.addEventListener("load", function(event) {
           let iframeDocument = iframe.contentDocument;
           iframeDocument.body.setAttribute("style", "margin:0; width:100%; height:100%;");
-          
-          Inject.css(iframeDocument, "chrome://imgurfox-crop/content/jquery.Jcrop.css");
-          Inject.scripts(iframeDocument,
+
+          ImgurInject.css(iframeDocument, "chrome://imgurfox-crop/content/jquery.Jcrop.css");
+          ImgurInject.scripts(iframeDocument,
             ["chrome://imgurfox-crop/content/jquery-1.4.2.min.js",
              "chrome://imgurfox-crop/content/jquery.Jcrop.js"],
             function afterLoaded() {
               // Run this code within the iframe.
               iframe.contentWindow.location.href = "javascript:(" + function(startingRect) {
                 var crop;
-                
+
                 function finishCrop() {
                   var event = document.createEvent("Events");
                   event.initEvent("CropFinished", true, false);
                   document.body.dispatchEvent(event);
                 }
-                
+
                 function cancelCrop() {
                   crop.cancel();
                   crop.release();
                   finishCrop();
                 }
-                    
+
                 window.getCoords = function() {
                   var coords = crop.tellSelect();
                   return JSON.stringify(coords);
-                }
-                
+                };
+
                 $(window).keydown(function(e) {
-                  // ESC Key
+                  /* jimgur: this comment broke selective screenshot since the afterLoaded func is one-lined: "ESC Key" */
                   if (e.which == 27) {
                     cancelCrop(true);
                   }
-                })
-                
+                });
+
                 crop = $.Jcrop(document.body, {
                   allowSelect: false,
                   boundary: 0,
                   onDblClick: finishCrop
                 });
-                    
+
                 $(".jcrop-holder").hide();
                 crop.setSelect(startingRect);
                 crop.focus();
@@ -323,22 +323,22 @@ var ImgurFoxWindow = (function() {
 
         return iframe;
       }
-      
+
       function endCrop(iframe) {
         iframe.parentNode.removeChild(iframe);
 
         var notification = gBrowser.getNotificationBox().getNotificationWithValue(notificationValue);
         if (notification) { notification.close(); }
       }
-      
+
       function performCrop(iframe) {
-        let cropCoords = nativeJSON.decode(iframe.contentWindow.wrappedJSObject.getCoords());
+        let cropCoords = JSON.parse(iframe.contentWindow.wrappedJSObject.getCoords());
         endCrop(iframe);
         if (cropCoords) {
           callback(function() ImgurFoxWindow.grabScreenshot(pageWindow, cropCoords));
         }
       }
-      
+
       let iframe = initCrop();
       if (iframe) {
         iframe.contentWindow.addEventListener("CropFinished", function() { performCrop(iframe) }, false);
